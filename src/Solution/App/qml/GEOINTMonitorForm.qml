@@ -19,6 +19,14 @@ import Esri.GEOINTMonitor 1.0
 Item {
     id: mapForm
 
+    function activateSimpleRendering() {
+        model.activateSimpleRendering();
+    }
+
+    function activateHeatmapRendering() {
+        model.activateHeatmapRendering();
+    }
+
     function exportMapImage() {
         model.exportMapImage();
     }
@@ -31,8 +39,33 @@ Item {
         model.queryGdelt(queryText);
     }
 
+    function clearGdelt() {
+        model.clearGdelt();
+    }
+
+    function queryNominatim(queryText) {
+        model.queryNominatim(queryText);
+    }
+
+    function nextPlace() {
+        model.nextPlace();
+    }
+
+    function clearNominatim() {
+        model.clearNominatim();
+    }
+
+    function queryWikimapia() {
+        model.queryWikimapia();
+    }
+
+    function clearWikimapia() {
+        model.clearWikimapia();
+    }
+
     signal mapNotification(string message);
     signal calloutDataChanged(GdeltCalloutData calloutData);
+    signal wikimapiaStateChanged(bool enabled);
 
     // Create MapQuickView here, and create its Map etc. in C++ code
     MapView {
@@ -94,6 +127,10 @@ Item {
 
         onMapImageExported: {
             mapForm.mapNotification(model.lastMapImageFilePath);
+        }
+
+        onWikimapiaStateChanged: {
+            mapForm.wikimapiaStateChanged(model.queryWikimapiaEnabled);
         }
     }
 }

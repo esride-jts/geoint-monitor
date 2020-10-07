@@ -21,8 +21,10 @@
 // the licensors of this Program grant you additional permission to convey the resulting work.
 // See <https://developers.arcgis.com/qt/> for further information.
 //
-#ifndef GDELTEVENTLAYER_H
-#define GDELTEVENTLAYER_H
+#ifndef WIKIMAPIAPLACELAYER_H
+#define WIKIMAPIAPLACELAYER_H
+
+#include "Envelope.h"
 
 namespace Esri
 {
@@ -40,19 +42,16 @@ class QNetworkReply;
 #include <QNetworkAccessManager>
 #include <QObject>
 
-class GdeltEventLayer : public QObject
+class WikimapiaPlaceLayer : public QObject
 {
     Q_OBJECT
 public:
-    explicit GdeltEventLayer(QObject *parent = nullptr);
+    explicit WikimapiaPlaceLayer(QObject *parent = nullptr);
 
-    void setHeatmapRendering(bool enabled);
-
-    void setQueryFilter(const QString& filter);
+    void setSpatialFilter(const Esri::ArcGISRuntime::Envelope &extent);
 
     Esri::ArcGISRuntime::GraphicsOverlay* overlay() const;
-
-    Esri::ArcGISRuntime::Graphic* findGraphic(const QString& graphicUid) const;
+    Esri::ArcGISRuntime::GraphicsOverlay* labelOverlay() const;
 
     void query();
 
@@ -62,14 +61,14 @@ private slots:
     void networkRequestFinished(QNetworkReply* reply);
 
 private:
-    Esri::ArcGISRuntime::FeatureCollectionTable* createTable();
-
     QNetworkAccessManager* m_networkAccessManager = nullptr;
+    QString m_wikimapiaLicenseKey;
+
     Esri::ArcGISRuntime::GraphicsOverlay* m_overlay = nullptr;
     Esri::ArcGISRuntime::Renderer* m_simpleRenderer = nullptr;
-    Esri::ArcGISRuntime::Renderer* m_heatMapRenderer = nullptr;
+    Esri::ArcGISRuntime::GraphicsOverlay* m_labelOverlay = nullptr;
 
-    QString m_queryFilter;
+    Esri::ArcGISRuntime::Envelope m_spatialFilter;
 };
 
-#endif // GDELTEVENTLAYER_H
+#endif // WIKIMAPIAPLACELAYER_H

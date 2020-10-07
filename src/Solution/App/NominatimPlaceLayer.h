@@ -21,8 +21,8 @@
 // the licensors of this Program grant you additional permission to convey the resulting work.
 // See <https://developers.arcgis.com/qt/> for further information.
 //
-#ifndef GDELTEVENTLAYER_H
-#define GDELTEVENTLAYER_H
+#ifndef NOMINATIMPLACELAYER_H
+#define NOMINATIMPLACELAYER_H
 
 namespace Esri
 {
@@ -40,36 +40,33 @@ class QNetworkReply;
 #include <QNetworkAccessManager>
 #include <QObject>
 
-class GdeltEventLayer : public QObject
+class NominatimPlaceLayer : public QObject
 {
     Q_OBJECT
 public:
-    explicit GdeltEventLayer(QObject *parent = nullptr);
-
-    void setHeatmapRendering(bool enabled);
-
-    void setQueryFilter(const QString& filter);
+    explicit NominatimPlaceLayer(QObject *parent = nullptr);
 
     Esri::ArcGISRuntime::GraphicsOverlay* overlay() const;
+    Esri::ArcGISRuntime::GraphicsOverlay* pointOverlay() const;
 
-    Esri::ArcGISRuntime::Graphic* findGraphic(const QString& graphicUid) const;
+    void setQueryFilter(const QString& filter);
 
     void query();
 
 signals:
+    void queryFinished();
 
 private slots:
     void networkRequestFinished(QNetworkReply* reply);
 
 private:
-    Esri::ArcGISRuntime::FeatureCollectionTable* createTable();
-
     QNetworkAccessManager* m_networkAccessManager = nullptr;
+    QString m_wikimapiaLicenseKey;
+
     Esri::ArcGISRuntime::GraphicsOverlay* m_overlay = nullptr;
-    Esri::ArcGISRuntime::Renderer* m_simpleRenderer = nullptr;
-    Esri::ArcGISRuntime::Renderer* m_heatMapRenderer = nullptr;
+    Esri::ArcGISRuntime::GraphicsOverlay* m_pointOverlay = nullptr;
 
     QString m_queryFilter;
 };
 
-#endif // GDELTEVENTLAYER_H
+#endif // NOMINATIMPLACELAYER_H

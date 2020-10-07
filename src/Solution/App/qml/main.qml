@@ -30,27 +30,105 @@ ApplicationWindow {
     Material.primary: "#434a39"     // BW Dunkelgrün
 
     header: ToolBar {
-        RowLayout {
+        ColumnLayout {
             anchors.fill: parent
 
-            ToolButton {
-                text: qsTr("Export map")
-                onClicked: {
-                    monitorForm.exportMapImage();
+            RowLayout {
+
+                ButtonGroup {
+                    buttons: [simpleButton, heatButton]
+                }
+
+                RadioButton {
+                    id: simpleButton
+                    checked: true
+                    text: qsTr("Simple")
+                    onClicked: {
+                        monitorForm.activateSimpleRendering();
+                    }
+                }
+
+                RadioButton {
+                    id: heatButton
+                    text: qsTr("Heat")
+                    onClicked: {
+                        monitorForm.activateHeatmapRendering();
+                    }
+                }
+
+                TextField {
+                    id: queryText
+                    Layout.fillWidth: true
+                    placeholderText: "<search for news>"
+                }
+
+                ToolButton {
+                    text: qsTr("Query")
+                    onClicked: {
+                        gdeltListModel.clear();
+                        monitorForm.queryGdelt(queryText.text);
+                    }
+                }
+
+                ToolButton {
+                    text: qsTr("Clear")
+                    onClicked: {
+                        gdeltListModel.clear();
+                        monitorForm.clearGdelt();
+                    }
                 }
             }
 
-            TextField {
-                id: queryText
-                Layout.fillWidth: true
-                text: "climate change"
-            }
+            RowLayout {
 
-            ToolButton {
-                text: qsTr("Query GDELT")
-                onClicked: {
-                    gdeltListModel.clear();
-                    monitorForm.queryGdelt(queryText.text);
+                TextField {
+                    id: placeText
+                    Layout.fillWidth: true
+                    placeholderText: "<place name>"
+                }
+
+                ToolButton {
+                    text: qsTr("Add to map")
+                    onClicked: {
+                        monitorForm.queryNominatim(placeText.text);
+                    }
+                }
+
+                ToolButton {
+                    text: qsTr("Next place")
+                    onClicked: {
+                        monitorForm.nextPlace();
+                    }
+                }
+
+                ToolButton {
+                    text: qsTr("Clear")
+                    onClicked: {
+                        monitorForm.clearNominatim();
+                    }
+                }
+
+                ToolButton {
+                    id: findPlacesButton
+                    enabled: false
+                    text: qsTr("Find places")
+                    onClicked: {
+                        monitorForm.queryWikimapia();
+                    }
+                }
+
+                ToolButton {
+                    text: qsTr("Clear")
+                    onClicked: {
+                        monitorForm.clearWikimapia();
+                    }
+                }
+
+                ToolButton {
+                    text: qsTr("Export map")
+                    onClicked: {
+                        monitorForm.exportMapImage();
+                    }
                 }
             }
         }
@@ -82,6 +160,10 @@ ApplicationWindow {
                 var lastIndex = gdeltListModel.count;
                 gdeltListModel.append(listElement);
                 gdeltListView.currentIndex = lastIndex;
+            }
+
+            onWikimapiaStateChanged: {
+                findPlacesButton.enabled = enabled;
             }
         }
 

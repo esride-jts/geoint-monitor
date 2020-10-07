@@ -14,6 +14,7 @@
 #include "GEOINTMonitor.h"
 
 #include "Basemap.h"
+#include "GeometryEngine.h"
 #include "Graphic.h"
 #include "IdentifyGraphicsOverlayResult.h"
 #include "Map.h"
@@ -22,7 +23,10 @@
 
 #include "GdeltCalloutData.h"
 #include "GdeltEventLayer.h"
+#include "NominatimPlaceLayer.h"
+#include "WikimapiaPlaceLayer.h"
 
+#include <QDesktopServices>
 #include <QDir>
 #include <QRegularExpression>
 #include <QStringBuilder>
@@ -34,7 +38,9 @@ GEOINTMonitor::GEOINTMonitor(QObject* parent /* = nullptr */):
     QObject(parent),
     m_map(new Map(Basemap::openStreetMap(this), this)),
     m_lastCalloutData(new GdeltCalloutData(this)),
-    m_gdeltLayer(new GdeltEventLayer(this))
+    m_gdeltLayer(new GdeltEventLayer(this)),
+    m_nominatimPlaceLayer(new NominatimPlaceLayer(this)),
+    m_wikimapiaPlaceLayer(new WikimapiaPlaceLayer(this))
 {
 }
 
@@ -60,6 +66,20 @@ void GEOINTMonitor::setMapView(MapQuickView* mapView)
     connect(m_mapView, &MapQuickView::exportImageCompleted, this, &GEOINTMonitor::exportMapImageCompleted);
     connect(m_mapView, &MapQuickView::mouseClicked, this, &GEOINTMonitor::mouseClicked);
     connect(m_mapView, &MapQuickView::identifyGraphicsOverlayCompleted, this, &GEOINTMonitor::identifyGraphicsOverlayCompleted);
+    connect(m_mapView, &MapQuickView::navigatingChanged, this, &GEOINTMonitor::navigatingChanged);
+    //connect(m_mapView, &MapQuickView::viewpointChanged, this, &GEOINTMonitor::viewpointChanged);
+
+    // Add the nominatim layer
+    GraphicsOverlay* nominatimOverlay = m_nominatimPlaceLayer->overlay();
+    m_mapView->graphicsOverlays()->append(nominatimOverlay);
+    GraphicsOverlay* nominatimLabelOverlay = m_nominatimPlaceLayer->pointOverlay();
+    m_mapView->graphicsOverlays()->append(nominatimLabelOverlay);
+
+    // Add the wikimapia query layer
+    GraphicsOverlay* wikimapiaOverlay = m_wikimapiaPlaceLayer->overlay();
+    m_mapView->graphicsOverlays()->append(wikimapiaOverlay);
+    GraphicsOverlay* wikimapiaLabelOverlay = m_wikimapiaPlaceLayer->labelOverlay();
+    m_mapView->graphicsOverlays()->append(wikimapiaLabelOverlay);
 
     // Add the GDELT query layer
     GraphicsOverlay* gdeltOverlay = m_gdeltLayer->overlay();
@@ -83,6 +103,38 @@ GdeltCalloutData* GEOINTMonitor::lastCalloutData() const
     return m_lastCalloutData;
 }
 
+bool GEOINTMonitor::queryWikimapiaEnabled() const
+{
+    return m_queryWikimapiaEnabled;
+}
+
+void GEOINTMonitor::activateHeatmapRendering() const
+{
+    m_gdeltLayer->setHeatmapRendering(true);
+}
+
+void GEOINTMonitor::activateSimpleRendering() const
+{
+    m_gdeltLayer->setHeatmapRendering(false);
+}
+
+void GEOINTMonitor::clearGdelt() const
+{
+    m_gdeltLayer->overlay()->graphics()->clear();
+}
+
+void GEOINTMonitor::clearNominatim() const
+{
+    m_nominatimPlaceLayer->overlay()->graphics()->clear();
+    m_nominatimPlaceLayer->pointOverlay()->graphics()->clear();
+}
+
+void GEOINTMonitor::clearWikimapia() const
+{
+    m_wikimapiaPlaceLayer->overlay()->graphics()->clear();
+    m_wikimapiaPlaceLayer->labelOverlay()->graphics()->clear();
+}
+
 void GEOINTMonitor::exportMapImage() const
 {
     if (!m_mapView)
@@ -98,6 +150,19 @@ void GEOINTMonitor::identifyGraphicsOverlayCompleted(QUuid taskId, Esri::ArcGISR
     Q_UNUSED(taskId);
     if (!identifyResult->error().isEmpty())
     {
+        return;
+    }
+
+    if (m_wikimapiaPlaceLayer->overlay() == identifyResult->graphicsOverlay())
+    {
+        // Wikimapia overlay results
+        QList<Graphic*> identifiedWikimapiaGraphics = identifyResult->graphics();
+        foreach (Graphic* graphic, identifiedWikimapiaGraphics)
+        {
+            graphic->setSelected(true);
+            QString wikimapiaUrl = graphic->attributes()->attributeValue("url").toString();
+            QDesktopServices::openUrl(QUrl(wikimapiaUrl));
+        }
         return;
     }
 
@@ -199,12 +264,70 @@ void GEOINTMonitor::mouseClicked(QMouseEvent& mouseEvent)
     GraphicsOverlay* gdeltOverlay = m_gdeltLayer->overlay();
     gdeltOverlay->clearSelection();
     m_mapView->identifyGraphicsOverlay(gdeltOverlay, mouseEvent.x(), mouseEvent.y(), pixelTolerance, onlyPopups);
+    GraphicsOverlay* wikimapiaOverlay = m_wikimapiaPlaceLayer->overlay();
+    wikimapiaOverlay->clearSelection();
+    m_mapView->identifyGraphicsOverlay(wikimapiaOverlay, mouseEvent.x(), mouseEvent.y(), pixelTolerance, onlyPopups);
+
+    // Query wikimapia
+    /*
+    Point lowerLeftLocation = m_mapView->screenToLocation(m_lastMouseClickLocation.x() - pixelTolerance, m_lastMouseClickLocation.y() - pixelTolerance);
+    Point upperRightLocation = m_mapView->screenToLocation(m_lastMouseClickLocation.x() + pixelTolerance, m_lastMouseClickLocation.y() + pixelTolerance);
+    Envelope boundingBox(lowerLeftLocation, upperRightLocation);
+    Envelope boundingBoxWgs84 = GeometryEngine::project(boundingBox, SpatialReference::wgs84()).extent();
+    m_wikimapiaPlaceLayer->setSpatialFilter(boundingBoxWgs84);
+    m_wikimapiaPlaceLayer->query();
+    */
 }
 
 void GEOINTMonitor::queryGdelt(const QString &queryText) const
 {
     m_gdeltLayer->setQueryFilter(queryText);
     m_gdeltLayer->query();
+}
+
+void GEOINTMonitor::queryNominatim(const QString &queryText) const
+{
+    m_nominatimPlaceLayer->setQueryFilter(queryText);
+    m_nominatimPlaceLayer->query();
+}
+
+void GEOINTMonitor::nextPlace()
+{
+    m_placeIndex++;
+    GraphicListModel* nominatimGraphics = m_nominatimPlaceLayer->overlay()->graphics();
+    if (0 == nominatimGraphics->size())
+    {
+        return;
+    }
+
+    if (nominatimGraphics->size() <= m_placeIndex)
+    {
+        m_placeIndex = 0;
+    }
+
+    Graphic* nominatimGraphic = nominatimGraphics->at(m_placeIndex);
+    m_mapView->setViewpointGeometry(nominatimGraphic->geometry());
+}
+
+void GEOINTMonitor::queryWikimapia()
+{
+    // Query wikimapia
+    Viewpoint boundingViewpoint = m_mapView->currentViewpoint(ViewpointType::BoundingGeometry);
+    Envelope boundingBox = boundingViewpoint.targetGeometry();
+    Envelope boundingBoxWgs84 = GeometryEngine::project(boundingBox, SpatialReference::wgs84()).extent();
+    if (!m_lastQueriedBoundingBox.isEmpty())
+    {
+        const double wgsCoordinateTolerance = 0.01;
+        if (m_lastQueriedBoundingBox.equalsWithTolerance(boundingBoxWgs84, wgsCoordinateTolerance))
+        {
+            // Viewpoint did not changed that much
+            return;
+        }
+    }
+    m_lastQueriedBoundingBox = boundingBoxWgs84;
+
+    m_wikimapiaPlaceLayer->setSpatialFilter(boundingBoxWgs84);
+    m_wikimapiaPlaceLayer->query();
 }
 
 void GEOINTMonitor::exportMapImageCompleted(QUuid taskId, QImage image)
@@ -249,4 +372,42 @@ void GEOINTMonitor::selectGraphic(const QString &graphicUid) const
     default:
         return;
     }
+}
+
+void GEOINTMonitor::navigatingChanged()
+{
+    m_navigating = !m_navigating;
+    if (m_navigating)
+    {
+        // Started navigating
+        //qDebug() << "START";
+    }
+    else
+    {
+        // Stopped navigating
+        //qDebug() << "STOPP";
+
+        const double minScale = 1e5;
+        if (m_mapView->mapScale() < minScale)
+        {
+            if (!m_queryWikimapiaEnabled)
+            {
+                m_queryWikimapiaEnabled = true;
+                emit wikimapiaStateChanged();
+            }
+        }
+        else
+        {
+            if (m_queryWikimapiaEnabled)
+            {
+                m_queryWikimapiaEnabled = false;
+                emit wikimapiaStateChanged();
+            }
+        }
+    }
+}
+
+void GEOINTMonitor::viewpointChanged()
+{
+    qDebug() << "viewpoint changed";
 }
